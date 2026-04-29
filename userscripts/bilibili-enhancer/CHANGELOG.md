@@ -1,5 +1,11 @@
 # bilibili-enhancer
 
+## 0.1.2
+
+### Patch Changes
+
+- [`772ee0c`](https://github.com/ivestszheng/userscripts/commit/772ee0c9420dbda305231715347601a4b5b83db2) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 添加 bilibili-enhancer 的元数据信息
+
 ## 0.1.1
 
 ### Patch Changes
