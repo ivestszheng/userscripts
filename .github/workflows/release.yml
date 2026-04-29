@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: "Build mode"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - "auto"
+          - "force"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -19,7 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,13 +43,26 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check for Changesets
+      - name: Check for Changesets or Force Build
         id: check-changesets
         run: |
+          HAS_CHANGESETS=false
           if [ "$(ls -A .changeset/*.md 2>/dev/null | grep -v "README.md" | wc -l)" -gt 0 ]; then
-            echo "hasChangesets=true" >> $GITHUB_OUTPUT
+            HAS_CHANGESETS=true
+          fi
+          
+          FORCE_BUILD=false
+          if [ "${{ github.event.inputs.force_build }}" = "true" ]; then
+            FORCE_BUILD=true
+          fi
+          
+          echo "hasChangesets=${HAS_CHANGESETS}" >> $GITHUB_OUTPUT
+          echo "forceBuild=${FORCE_BUILD}" >> $GITHUB_OUTPUT
+          
+          if [ "$HAS_CHANGESETS" = "true" ] || [ "$FORCE_BUILD" = "true" ]; then
+            echo "shouldBuild=true" >> $GITHUB_OUTPUT
           else
-            echo "hasChangesets=false" >> $GITHUB_OUTPUT
+            echo "shouldBuild=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Changeset Version
@@ -63,19 +85,14 @@ jobs:
           fi
 
       - name: Build Packages
-        if: steps.check-version.outputs.hasChanges == 'true'
+        if: steps.check-changesets.outputs.shouldBuild == 'true'
         run: |
           ALL_PACKAGES=$(pnpm ls --depth -1 --parseable | xargs)
           pnpm --filter $ALL_PACKAGES run build
-          
-          # Debug: list built files
-          echo "Built files:"
-          find userscripts -name "*.user.js" || true
-          ls -la userscripts/*/dist/ 2>/dev/null || true
 
-      - name: Create Git Tags
+      - name: Create Package Tags
         if: steps.check-version.outputs.hasChanges == 'true'
-        id: create-tags
+        id: create-package-tags
         run: |
           TAGS_CREATED=""
           
@@ -100,27 +117,47 @@ jobs:
             echo "tagsCreated=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Delete Existing latest Tag
-        if: steps.create-tags.outputs.tagsCreated == 'true'
+      - name: Configure Git Credentials
+        if: steps.check-version.outputs.hasChanges == 'true'
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit Changes
+        if: steps.check-version.outputs.hasChanges == 'true'
+        run: |
+          git add .
+          git commit -m "chore: version packages [skip ci]"
+
+      - name: Create latest Tag
+        if: steps.check-changesets.outputs.shouldBuild == 'true'
+        run: |
+          # Delete existing latest tag
           git tag -d latest 2>/dev/null || true
           git push origin :latest 2>/dev/null || true
+          
+          # Create new latest tag
+          git tag -a latest -m "Latest Release"
+          echo "Created latest tag"
 
-      - name: Debug Check files before release
+      - name: Push Changes and Tags
         if: steps.check-version.outputs.hasChanges == 'true'
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "All files:"
-          ls -la
-          echo ""
-          echo "Looking for .user.js files:"
-          find . -name "*.user.js" -type f
-          echo ""
-          echo "Dist directories:"
-          find . -name "dist" -type d
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          tags: true
+
+      - name: Push latest Tag Only (Force Build)
+        if: steps.check-changesets.outputs.forceBuild == 'true' && steps.check-version.outputs.hasChanges != 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          tags: true
 
       - name: Create/Update latest Release
-        if: steps.check-version.outputs.hasChanges == 'true'
+        if: steps.check-changesets.outputs.shouldBuild == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: userscripts/*/dist/*.user.js
@@ -136,31 +173,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git Credentials
-        if: steps.check-version.outputs.hasChanges == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit Changes
-        if: steps.check-version.outputs.hasChanges == 'true'
-        run: |
-          git add .
-          git commit -m "chore: version packages [skip ci]"
-
-      - name: Push Changes
-        if: steps.check-version.outputs.hasChanges == 'true'
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref }}
-          tags: false
-
-      - name: Push Tags
-        if: steps.create-tags.outputs.tagsCreated == 'true'
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref }}
-          tags: true
