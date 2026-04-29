@@ -102,21 +102,21 @@ jobs:
           fi
 
       - name: Clean Dist Directory
-        if: ${{ steps.affected.outputs.list != '' }}
+        if: ${{ steps.affected.outputs.list != '' || inputs.build_mode == 'full' }}
         run: |
           # 强制清理旧构建产物，防止上传残留文件
           rm -rf dist
           mkdir dist
 
       - name: Build Affected Packages
-        if: ${{ steps.affected.outputs.list != '' }}
+        if: ${{ steps.affected.outputs.list != '' || inputs.build_mode == 'full' }}
         run: |
           pnpm --filter ${{ steps.affected.outputs.list }} run build
 
       # --- 上传到 GitHub Release (Latest) ---
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
-        if: ${{ steps.affected.outputs.list != '' }}
+        if: ${{ steps.affected.outputs.list != '' || inputs.build_mode == 'full' }}
         with:
           files: dist/*/*.user.js
           overwrite: true
