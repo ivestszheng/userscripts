@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
     inputs:
       build_mode:
@@ -90,8 +90,29 @@ jobs:
       - name: Build Packages
         if: steps.check-changesets.outputs.shouldBuild == 'true'
         run: |
-          ALL_PACKAGES=$(pnpm ls --depth -1 --parseable | xargs)
-          pnpm --filter $ALL_PACKAGES run build
+          echo "=== Building all userscripts ==="
+          pnpm --filter "./userscripts/*" run build
+
+      - name: Debug - List Built Files
+        if: steps.check-changesets.outputs.shouldBuild == 'true'
+        run: |
+          echo "=== Current directory ==="
+          pwd
+          ls -la
+          echo ""
+          echo "=== All .user.js files ==="
+          find . -name "*.user.js" -type f
+          echo ""
+          echo "=== userscripts dist directories ==="
+          find userscripts -name "dist" -type d
+          echo ""
+          echo "=== userscripts dist contents ==="
+          for d in userscripts/*/dist; do
+            if [ -d "$d" ]; then
+              echo "--- $d ---"
+              ls -la "$d"
+            fi
+          done
 
       - name: Create Package Tags
         if: steps.check-version.outputs.hasChanges == 'true'
