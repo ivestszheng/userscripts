@@ -19,6 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -101,7 +102,7 @@ jobs:
           git push origin :latest 2>/dev/null || true
 
       - name: Create/Update latest Release
-        if: steps.create-tags.outputs.tagsCreated == 'true'
+        if: steps.check-version.outputs.hasChanges == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: userscripts/*/dist/*.user.js
@@ -116,13 +117,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit and Push Changes
+      - name: Configure Git Credentials
+        if: steps.check-version.outputs.hasChanges == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit Changes
         if: steps.check-version.outputs.hasChanges == 'true'
         run: |
           git add .
           git commit -m "chore: version packages [skip ci]"
-          git push origin HEAD:${{ github.ref }}
-          
-          if [ "${{ steps.create-tags.outputs.tagsCreated }}" == "true" ]; then
-            git push origin ${{ steps.create-tags.outputs.tagList }}
-          fi
+
+      - name: Push Changes
+        if: steps.check-version.outputs.hasChanges == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          tags: false
+
+      - name: Push Tags
+        if: steps.create-tags.outputs.tagsCreated == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+          tags: true
