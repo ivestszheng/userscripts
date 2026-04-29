@@ -8,6 +8,7 @@ export default defineConfig({
       entry: 'src/main.ts',
       userscript: {
         namespace: 'https://github.com/ivestszheng/userscripts',
+        downloadURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilibili-enhancer.user.js',
         match: ['https://*.bilibili.com/*'],
       },
     }),
