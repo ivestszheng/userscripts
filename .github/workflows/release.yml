@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  # push:
-  #   branches:
-  #     - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       build_mode:
@@ -65,6 +65,14 @@ jobs:
             echo "shouldBuild=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Get Affected Packages (before version)
+        id: affected-packages
+        if: steps.check-changesets.outputs.shouldBuild == 'true' && steps.check-changesets.outputs.hasChangesets == 'true'
+        run: |
+          # 在运行 changeset version 之前，先保存受影响的包
+          CHANGED_PACKAGES=$(pnpm changeset status --output-json | jq -r '.releases[].name' || true)
+          echo "changedPackages=${CHANGED_PACKAGES}" >> $GITHUB_OUTPUT
+
       - name: Configure Git Credentials
         if: steps.check-changesets.outputs.shouldBuild == 'true'
         run: |
@@ -77,21 +85,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm changeset version
 
-      - name: Check for Version Changes
-        id: check-version
-        if: steps.check-changesets.outputs.hasChangesets == 'true'
-        run: |
-          if git diff --quiet; then
-            echo "hasChanges=false" >> $GITHUB_OUTPUT
-          else
-            echo "hasChanges=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build Packages
         if: steps.check-changesets.outputs.shouldBuild == 'true'
         run: |
-          echo "=== Building all userscripts ==="
-          pnpm --filter "./userscripts/*" run build
+          if [ "${{ steps.check-changesets.outputs.forceBuild }}" = "true" ]; then
+            echo "=== Force build: building all userscripts ==="
+            pnpm --filter "./userscripts/*" run build
+          else
+            CHANGED_PACKAGES="${{ steps.affected-packages.outputs.changedPackages }}"
+            if [ -z "$CHANGED_PACKAGES" ]; then
+              echo "=== No affected packages found, building all userscripts ==="
+              pnpm --filter "./userscripts/*" run build
+            else
+              echo "=== Incremental build: building affected packages ==="
+              for pkg in $CHANGED_PACKAGES; do
+                echo "Building $pkg..."
+                pnpm --filter "$pkg" run build
+              done
+            fi
+          fi
 
       - name: Debug - List Built Files
         if: steps.check-changesets.outputs.shouldBuild == 'true'
@@ -115,7 +127,7 @@ jobs:
           done
 
       - name: Create Package Tags
-        if: steps.check-version.outputs.hasChanges == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         id: create-package-tags
         run: |
           TAGS_CREATED=""
@@ -142,7 +154,7 @@ jobs:
           fi
 
       - name: Commit Changes
-        if: steps.check-version.outputs.hasChanges == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         run: |
           git add .
           git commit -m "chore: version packages [skip ci]"
@@ -159,7 +171,7 @@ jobs:
           echo "Created latest tag"
 
       - name: Push Changes and Tags
-        if: steps.check-version.outputs.hasChanges == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -167,7 +179,7 @@ jobs:
           tags: true
 
       - name: Push latest Tag Only (Force Build)
-        if: steps.check-changesets.outputs.forceBuild == 'true' && steps.check-version.outputs.hasChanges != 'true'
+        if: steps.check-changesets.outputs.forceBuild == 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
