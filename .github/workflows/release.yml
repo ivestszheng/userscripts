@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for Changesets
+        id: check-changesets
+        run: |
+          if [ "$(ls -A .changeset/*.md 2>/dev/null | grep -v "README.md" | wc -l)" -gt 0 ]; then
+            echo "hasChangesets=true" >> $GITHUB_OUTPUT
+          else
+            echo "hasChangesets=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Changeset Version
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          pnpm changeset version
+
+      - name: Check for Version Changes
+        id: check-version
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "hasChanges=false" >> $GITHUB_OUTPUT
+          else
+            echo "hasChanges=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Packages
+        if: steps.check-version.outputs.hasChanges == 'true'
+        run: |
+          ALL_PACKAGES=$(pnpm ls --depth -1 --parseable | xargs)
+          pnpm --filter $ALL_PACKAGES run build
+
+      - name: Create Git Tags
+        if: steps.check-version.outputs.hasChanges == 'true'
+        id: create-tags
+        run: |
+          TAGS_CREATED=""
+          
+          for pkg_dir in userscripts/*; do
+            if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
+              pkg_name=$(basename "$pkg_dir")
+              version=$(jq -r '.version' "$pkg_dir/package.json")
+              tag_name="${pkg_name}@${version}"
+              
+              if ! git rev-parse "$tag_name" >/dev/null 2>&1; then
+                git tag -a "$tag_name" -m "Release ${pkg_name}@${version}"
+                TAGS_CREATED="$TAGS_CREATED $tag_name"
+                echo "Created tag: $tag_name"
+              fi
+            fi
+          done
+          
+          if [ -n "$TAGS_CREATED" ]; then
+            echo "tagsCreated=true" >> $GITHUB_OUTPUT
+            echo "tagList=$TAGS_CREATED" >> $GITHUB_OUTPUT
+          else
+            echo "tagsCreated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete Existing latest Tag
+        if: steps.create-tags.outputs.tagsCreated == 'true'
+        run: |
+          git tag -d latest 2>/dev/null || true
+          git push origin :latest 2>/dev/null || true
+
+      - name: Create/Update latest Release
+        if: steps.create-tags.outputs.tagsCreated == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: userscripts/*/dist/*.user.js
+          tag_name: latest
+          name: Latest Release
+          body: |
+            This release always contains the latest version of all userscripts.
+            
+            Direct download links:
+            - [bilibili-enhancer.user.js](https://github.com/${{ github.repository }}/releases/latest/download/bilibili-enhancer.user.js)
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and Push Changes
+        if: steps.check-version.outputs.hasChanges == 'true'
+        run: |
+          git add .
+          git commit -m "chore: version packages [skip ci]"
+          git push origin HEAD:${{ github.ref }}
+          
+          if [ "${{ steps.create-tags.outputs.tagsCreated }}" == "true" ]; then
+            git push origin ${{ steps.create-tags.outputs.tagList }}
+          fi
