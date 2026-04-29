@@ -1,5 +1,11 @@
 # bilibili-enhancer
 
+## 0.1.3
+
+### Patch Changes
+
+- [`0901e39`](https://github.com/ivestszheng/userscripts/commit/0901e3947c48fad829eb704c14d0b9f00fa03e1d) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 把 downloadURL 和 updateURL 改为 raw 地址
+
 ## 0.1.2
 
 ### Patch Changes
