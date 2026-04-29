@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.1",
   "type": "module",
+  "author": "ivestszheng",
+  "bugs": "https://github.com/ivestszheng/userscripts/issues",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
