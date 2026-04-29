@@ -106,7 +106,7 @@ jobs:
           git tag -d latest 2>/dev/null || true
           git push origin :latest 2>/dev/null || true
 
-      - name: Debug: Check files before release
+      - name: Debug Check files before release
         if: steps.check-version.outputs.hasChanges == 'true'
         run: |
           echo "Current directory: $(pwd)"
