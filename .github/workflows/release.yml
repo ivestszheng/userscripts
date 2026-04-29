@@ -207,12 +207,17 @@ jobs:
 
       - name: Deploy to dist Branch
         if: steps.check-changesets.outputs.shouldBuild == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Deploying all dist files to dist branch..."
           
+          # 使用带 token 的 URL
+          REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          
           # 克隆 dist 分支到临时目录
-          git clone --depth 1 --branch dist https://github.com/${{ github.repository }}.git dist-temp 2>/dev/null || \
-            git clone --depth 1 --orphan dist https://github.com/${{ github.repository }}.git dist-temp 2>/dev/null || \
+          git clone --depth 1 --branch dist $REPO_URL dist-temp 2>/dev/null || \
+            git clone --depth 1 --orphan dist $REPO_URL dist-temp 2>/dev/null || \
             mkdir -p dist-temp
             
           cd dist-temp
@@ -240,11 +245,9 @@ jobs:
           # 提交并推送
           git add *.user.js
           git commit -m "chore: update dist files to latest version [skip ci]" || true
-          git push origin dist --force 2>/dev/null || git push origin dist
+          git push origin dist --force
           
           cd ..
           rm -rf dist-temp
           
           echo "Deployed to dist branch successfully!"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
