@@ -1,5 +1,11 @@
 # bilibili-enhancer
 
+## 0.1.4
+
+### Patch Changes
+
+- [`a1c3fa1`](https://github.com/ivestszheng/userscripts/commit/a1c3fa17528e83760619bc1d50ff060f58cd26ff) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 更新脚本下载链接至最新发布版本
+
 ## 0.1.3
 
 ### Patch Changes
