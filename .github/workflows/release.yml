@@ -52,7 +52,7 @@ jobs:
           fi
           
           FORCE_BUILD=false
-          if [ "${{ github.event.inputs.force_build }}" = "true" ]; then
+          if [ "${{ github.event.inputs.build_mode }}" = "force" ]; then
             FORCE_BUILD=true
           fi
           
