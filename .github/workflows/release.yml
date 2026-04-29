@@ -56,7 +56,11 @@ jobs:
   deploy:
     name: Build & Deploy
     needs: release
-    if: ${{ needs.release.outputs.published == 'true' }}
+    if: >-
+      ${{ 
+        github.event_name == 'workflow_dispatch' || 
+        (github.event_name == 'push' && needs.release.outputs.published == 'true') 
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
