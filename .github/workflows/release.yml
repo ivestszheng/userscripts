@@ -198,56 +198,8 @@ jobs:
             
             Direct download links:
             - [bilibili-enhancer.user.js](https://github.com/${{ github.repository }}/releases/latest/download/bilibili-enhancer.user.js)
-            - [bilibili-enhancer.user.js (Raw)](https://raw.githubusercontent.com/${{ github.repository }}/dist/bilibili-enhancer/bilibili-enhancer.user.js)
           fail_on_unmatched_files: false
           make_latest: true
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Deploy to dist Branch
-        if: steps.check-changesets.outputs.shouldBuild == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Deploying all dist files to dist branch..."
-          
-          # 使用带 token 的 URL
-          REPO_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-          
-          # 克隆 dist 分支到临时目录
-          git clone --depth 1 --branch dist $REPO_URL dist-temp 2>/dev/null || \
-            git clone --depth 1 --orphan dist $REPO_URL dist-temp 2>/dev/null || \
-            mkdir -p dist-temp
-            
-          cd dist-temp
-          
-          # 配置 git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 清空旧文件
-          rm -rf *
-          
-          # 复制所有构建产物
-          for pkg_dir in ../userscripts/*; do
-            if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
-              pkg_name=$(basename "$pkg_dir")
-              dist_file="$pkg_dir/dist/${pkg_name}.user.js"
-              
-              if [ -f "$dist_file" ]; then
-                cp "$dist_file" "./${pkg_name}.user.js"
-                echo "Copied ${pkg_name}.user.js"
-              fi
-            fi
-          done
-          
-          # 提交并推送
-          git add *.user.js
-          git commit -m "chore: update dist files to latest version [skip ci]" || true
-          git push origin dist --force
-          
-          cd ..
-          rm -rf dist-temp
-          
-          echo "Deployed to dist branch successfully!"
