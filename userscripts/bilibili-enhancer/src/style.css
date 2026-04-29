@@ -1,0 +1,28 @@
+.tm-quick-links {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-quick-links-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+}
+
+.tm-quick-links-item:hover {
+  background-color: #e0e0e0;
+}
+
+/* 隐藏官方顶部插件提示 */
+.adblock-tips {
+  display: none !important;
+}
