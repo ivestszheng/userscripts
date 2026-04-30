@@ -11,6 +11,7 @@ export default defineConfig({
         homepage: 'https://github.com/ivestszheng/userscripts',
         downloadURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilix.user.js',
         updateURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilix.user.js',
+        icon: 'https://www.bilibili.com/favicon.ico',
         match: ['https://*.bilibili.com/*'],
       },
     }),
