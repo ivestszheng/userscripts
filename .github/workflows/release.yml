@@ -57,7 +57,6 @@ jobs:
         run: |
           pnpm changeset version
           
-          # 收集更新的包
           UPDATED_PACKAGES=""
           for pkg_dir in userscripts/*; do
             if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
@@ -188,26 +187,71 @@ jobs:
                 tag_name: tag,
                 name: `${pkgName}@${version}`,
                 body: body || `Release ${pkgName}@${version}`,
-                generate_release_notes: true,
               });
               
               console.log(`Created release for ${tag}`);
               
-              const userJsFiles = await glob(`${pkgDir}/dist/*.user.js`);
-              for (const file of userJsFiles) {
-                const content = fs.readFileSync(file);
-                const fileName = path.basename(file);
-                
-                await github.rest.repos.uploadReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: release.id,
-                  name: fileName,
-                  data: content,
-                });
-                console.log(`Uploaded ${fileName} to ${tag} release`);
+              const distDir = path.join(pkgDir, 'dist');
+              if (fs.existsSync(distDir)) {
+                const files = fs.readdirSync(distDir);
+                for (const file of files) {
+                  if (file.endsWith('.user.js')) {
+                    const filePath = path.join(distDir, file);
+                    const content = fs.readFileSync(filePath);
+                    
+                    await github.rest.repos.uploadReleaseAsset({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      release_id: release.id,
+                      name: file,
+                      data: content,
+                    });
+                    console.log(`Uploaded ${file} to ${tag} release`);
+                  }
+                }
               }
             }
+
+      - name: Generate latest Release Body
+        id: generate-latest-body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const updatedPackages = '${{ steps.changeset-version.outputs.updatedPackages }}'.trim();
+            let body = `This release always contains the latest version of all userscripts.\n\n`;
+            
+            if (updatedPackages) {
+              const packages = updatedPackages.split(' ').filter(p => p);
+              body += `## Updated Packages\n\n`;
+              for (const pkgName of packages) {
+                const pkgDir = `userscripts/${pkgName}`;
+                const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf-8'));
+                body += `- ${pkgName}@${pkgJson.version}\n`;
+              }
+              body += `\n`;
+            }
+            
+            body += `## All Scripts\n\n`;
+            
+            for (const pkgDir of fs.readdirSync('userscripts')) {
+              const fullPath = path.join('userscripts', pkgDir);
+              if (fs.statSync(fullPath).isDirectory() && fs.existsSync(path.join(fullPath, 'package.json'))) {
+                const pkgJson = JSON.parse(fs.readFileSync(path.join(fullPath, 'package.json'), 'utf-8'));
+                const changelogPath = path.join(fullPath, 'CHANGELOG.md');
+                if (fs.existsSync(changelogPath)) {
+                  body += `- [${pkgDir}@${pkgJson.version}](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/userscripts/${pkgDir}/CHANGELOG.md)\n`;
+                } else {
+                  body += `- ${pkgDir}@${pkgJson.version}\n`;
+                }
+              }
+            }
+            
+            body += `\nDownload the .user.js files from Assets below.`;
+            
+            fs.writeFileSync('LATEST_RELEASE_BODY.md', body);
 
       - name: Create/Update latest Release
         uses: softprops/action-gh-release@v3
@@ -215,12 +259,8 @@ jobs:
           files: userscripts/*/dist/*.user.js
           tag_name: latest
           name: Latest Release
-          body: |
-            This release always contains the latest version of all userscripts.
-            
-            Download the .user.js files from Assets below.
+          body_path: LATEST_RELEASE_BODY.md
           fail_on_unmatched_files: false
           make_latest: true
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
