@@ -9,8 +9,8 @@ export default defineConfig({
       userscript: {
         namespace: 'https://github.com/ivestszheng/userscripts',
         homepage: 'https://github.com/ivestszheng/userscripts',
-        downloadURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilibili-enhancer.user.js',
-        updateURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilibili-enhancer.user.js',
+        downloadURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilix.user.js',
+        updateURL: 'https://github.com/ivestszheng/userscripts/releases/latest/download/bilix.user.js',
         match: ['https://*.bilibili.com/*'],
       },
     }),

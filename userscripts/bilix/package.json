@@ -1,6 +1,7 @@
 {
-  "name": "bilibili-enhancer",
-  "private": true,
+  "name": "bilix",
+  "description": "Bilibili Extended.",
+  "private": false,
   "version": "0.1.4",
   "type": "module",
   "author": "ivestszheng",

@@ -1,4 +1,4 @@
-# bilibili-enhancer
+# bilix
 
 ## 0.1.4
 

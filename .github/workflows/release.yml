@@ -186,6 +186,27 @@ jobs:
           branch: ${{ github.ref }}
           tags: true
 
+      - name: Generate Release Body
+        id: generate-release-body
+        if: steps.check-changesets.outputs.shouldBuild == 'true'
+        run: |
+          {
+            echo "This release always contains the latest version of all userscripts."
+            echo ""
+            echo "Direct download links:"
+            
+            for pkg_dir in userscripts/*; do
+              if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
+                pkg_name=$(basename "$pkg_dir")
+                echo "- [${pkg_name}.user.js](https://github.com/${{ github.repository }}/releases/latest/download/${pkg_name}.user.js)"
+              fi
+            done
+          } > release-body.md
+          
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release-body.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create/Update latest Release
         if: steps.check-changesets.outputs.shouldBuild == 'true'
         uses: softprops/action-gh-release@v2
@@ -193,11 +214,7 @@ jobs:
           files: userscripts/*/dist/*.user.js
           tag_name: latest
           name: Latest Release
-          body: |
-            This release always contains the latest version of all userscripts.
-            
-            Direct download links:
-            - [bilibili-enhancer.user.js](https://github.com/${{ github.repository }}/releases/latest/download/bilibili-enhancer.user.js)
+          body: ${{ steps.generate-release-body.outputs.body }}
           fail_on_unmatched_files: false
           make_latest: true
           generate_release_notes: true
