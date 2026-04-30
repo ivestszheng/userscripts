@@ -1,5 +1,15 @@
 # bilix
 
+## 0.2.1
+
+### Patch Changes
+
+- [`421ae41`](https://github.com/ivestszheng/userscripts/commit/421ae41467baa1fc9e0b532f6d5da5b177fa11ea) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 优化倍速持久化功能实现
+  - 重构代码结构，提取公共方法 findVideo
+  - 增加初始化状态检查和重试机制
+  - 使用 MutationObserver 监听播放器加载
+  - 移除冗余注释，简化逻辑
+
 ## 0.2.0
 
 ### Minor Changes
