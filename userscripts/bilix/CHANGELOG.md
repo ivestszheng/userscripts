@@ -1,5 +1,14 @@
 # bilix
 
+## 0.2.0
+
+### Minor Changes
+
+- [`4d5fb21`](https://github.com/ivestszheng/userscripts/commit/4d5fb21e2568d8089ee33a3f89e70512b60ad36a) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 添加随系统切换深色模式和视频倍速持久化功能
+  - 新增深色模式自动切换功能，根据系统偏好设置主题
+  - 实现视频播放倍速持久化，保存用户设置
+  - 重构动态页面功能代码，优化模块化结构
+
 ## 0.1.6
 
 ### Patch Changes
