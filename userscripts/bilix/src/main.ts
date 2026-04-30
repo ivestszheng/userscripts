@@ -1,31 +1,23 @@
 import './style.css';
-import { createQuickLinks, fixLiveUsersTop, makeSectionSticky } from './features/quickLinks';
+import { initDarkModeObserver } from './features/mediaChange';
+import { initDynamicPageFeatures } from './features/quickLinks';
+import { initSpeedPersistence } from './features/speedPersistence';
+
+// 页面类型判断辅助函数
+const isDynamicPage = () => window.location.hostname.includes('t.bilibili.com');
+const isVideoPage = () => window.location.pathname.startsWith('/video/');
 
 (() => {
-  if (!window.location.hostname.includes('t.bilibili.com')) {
-    return;
-  }
-
-  function createLinkElements(container: HTMLElement) {
-    if (container.querySelector('.tm-quick-links')) {
-      return;
-    }
-    const links = createQuickLinks();
-    container.appendChild(links);
+  // 深色模式监听全局生效
+  initDarkModeObserver();
+  
+  // 动态页面功能
+  if (isDynamicPage()) {
+    initDynamicPageFeatures();
   }
   
-  const observer = new MutationObserver((mutationsList) => {
-    for (const mutation of mutationsList) {
-      if (mutation.type === 'childList') {
-        const target = document.querySelector('.bili-dyn-my-info') as HTMLElement;
-        if (target) {
-          createLinkElements(target);
-          makeSectionSticky();
-          fixLiveUsersTop();
-        }
-      }
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
+  // 视频页倍速持久化
+  if (isVideoPage()) {
+    initSpeedPersistence();
+  }
 })();
