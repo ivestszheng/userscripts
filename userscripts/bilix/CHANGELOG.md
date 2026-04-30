@@ -1,5 +1,11 @@
 # bilix
 
+## 0.1.6
+
+### Patch Changes
+
+- [`361b1fa`](https://github.com/ivestszheng/userscripts/commit/361b1fafe355bef73863dcdd30d20e7c4975c94d) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 将项目名称从 bilibili-enhancer 更改为 bilix
+
 ## 0.1.5
 
 ### Patch Changes
