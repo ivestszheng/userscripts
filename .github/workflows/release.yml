@@ -146,7 +146,7 @@ jobs:
 
       - name: Create/Update latest Release
         if: steps.check-changesets.outputs.shouldBuild == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: userscripts/*/dist/*.user.js
           tag_name: latest
