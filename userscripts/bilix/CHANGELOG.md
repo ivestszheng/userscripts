@@ -1,5 +1,11 @@
 # bilix
 
+## 0.1.5
+
+### Patch Changes
+
+- [`d1fc661`](https://github.com/ivestszheng/userscripts/commit/d1fc6614e7d6a64948523924f01e04150fb7366a) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 修改包名以及增加描述
+
 ## 0.1.4
 
 ### Patch Changes

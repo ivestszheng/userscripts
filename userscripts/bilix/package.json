@@ -2,7 +2,7 @@
   "name": "bilix",
   "description": "Bilibili Extended.",
   "private": false,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "author": "ivestszheng",
   "bugs": "https://github.com/ivestszheng/userscripts/issues",
