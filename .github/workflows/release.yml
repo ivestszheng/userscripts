@@ -34,56 +34,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check for Changesets and Code Changes
-        id: check-changes
+      - name: Check for Changesets
+        id: check-changesets
         run: |
-          # 检查是否有 changesets
           HAS_CHANGESETS=false
           if [ "$(ls -A .changeset/*.md 2>/dev/null | grep -v "README.md" | wc -l)" -gt 0 ]; then
             HAS_CHANGESETS=true
           fi
           
           echo "hasChangesets=${HAS_CHANGESETS}" >> $GITHUB_OUTPUT
-          
-          # 获取当前 commit 和上一个 commit 的比较
-          # 获取当前分支的最新 commit
-          CURRENT_COMMIT=$(git rev-parse HEAD)
-          
-          # 获取上一个 commit（如果有）
-          PREVIOUS_COMMIT=$(git rev-parse HEAD^ 2>/dev/null || echo "")
-          
-          if [[ -z "$PREVIOUS_COMMIT" ]]; then
-            echo "No previous commit, building all packages"
-            echo "changedPackages=" >> $GITHUB_OUTPUT
-            echo "buildAll=true" >> $GITHUB_OUTPUT
-          else
-            # 检查 userscripts/ 目录下哪些包有变化
-            CHANGED_PACKAGES=""
-            
-            # 获取 userscripts/ 目录下有变化的文件
-            CHANGED_FILES=$(git diff --name-only "$PREVIOUS_COMMIT" "$CURRENT_COMMIT" -- userscripts/ || echo "")
-            
-            if [[ -z "$CHANGED_FILES" ]]; then
-              echo "No files changed in userscripts directory"
-              echo "changedPackages=" >> $GITHUB_OUTPUT
-              echo "buildAll=false" >> $GITHUB_OUTPUT
-            else
-              # 提取变化的包名
-              while read -r file; do
-                if [[ "$file" =~ ^userscripts/([^/]+)/ ]]; then
-                  pkg_name="${BASH_REMATCH[1]}"
-                  if [[ ! " $CHANGED_PACKAGES " =~ " $pkg_name " ]]; then
-                    CHANGED_PACKAGES="$CHANGED_PACKAGES $pkg_name"
-                  fi
-                fi
-              done <<< "$CHANGED_FILES"
-              
-              CHANGED_PACKAGES=$(echo "$CHANGED_PACKAGES" | xargs)
-              echo "Changed packages: $CHANGED_PACKAGES"
-              echo "changedPackages=$CHANGED_PACKAGES" >> $GITHUB_OUTPUT
-              echo "buildAll=false" >> $GITHUB_OUTPUT
-            fi
-          fi
 
       - name: Configure Git Credentials
         run: |
@@ -92,73 +51,30 @@ jobs:
 
       - name: Run Changeset Version
         id: changeset-version
-        if: steps.check-changes.outputs.hasChangesets == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 运行 changeset version 并保存输出
-          OUTPUT=$(pnpm changeset version 2>&1)
-          echo "${OUTPUT}"
+          pnpm changeset version
           
-          # 提取有更新的包
+          # 收集更新的包
           UPDATED_PACKAGES=""
-          
-          # 从输出中提取包名
-          while read -r line; do
-            if [[ "$line" =~ userscripts/([^/]+)/package.json ]]; then
-              pkg_name="${BASH_REMATCH[1]}"
-              UPDATED_PACKAGES="$UPDATED_PACKAGES $pkg_name"
-            fi
-          done <<< "$OUTPUT"
-          
-          # 如果没有从输出中提取不到，检查 package.json 的变化
-          if [[ -z "$UPDATED_PACKAGES" ]]; then
-            for pkg_dir in userscripts/*; do
-              if [[ -d "$pkg_dir" && -f "$pkg_dir/package.json" ]]; then
-                if git status --porcelain | grep -q "$pkg_dir/package.json"; then
-                  pkg_name=$(basename "$pkg_dir")
-                  UPDATED_PACKAGES="$UPDATED_PACKAGES $pkg_name"
-                fi
+          for pkg_dir in userscripts/*; do
+            if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
+              if git status --porcelain | grep -q "$pkg_dir/package.json"; then
+                pkg_name=$(basename "$pkg_dir")
+                UPDATED_PACKAGES="$UPDATED_PACKAGES $pkg_name"
               fi
-            done
-          fi
+            fi
+          done
           
           UPDATED_PACKAGES=$(echo "$UPDATED_PACKAGES" | xargs)
           echo "updatedPackages=$UPDATED_PACKAGES" >> $GITHUB_OUTPUT
 
-      - name: Build Packages
-        id: build-packages
+      - name: Build All Packages
         run: |
-          # 确定需要构建的包
-          BUILD_ALL=false
-          PACKAGES_TO_BUILD=""
-          
-          if [[ "${{ steps.check-changes.outputs.hasChangesets }}" == "true" ]]; then
-            # 有 changesets，使用 changeset-version 的输出
-            PACKAGES_TO_BUILD="${{ steps.changeset-version.outputs.updatedPackages }}"
-            if [[ -z "$PACKAGES_TO_BUILD" ]]; then
-              BUILD_ALL=true
-            fi
-          else
-            # 没有 changesets，使用 git diff 的输出
-            PACKAGES_TO_BUILD="${{ steps.check-changes.outputs.changedPackages }}"
-            if [[ "${{ steps.check-changes.outputs.buildAll }}" == "true" ]]; then
-              BUILD_ALL=true
-            fi
-          fi
-          
-          if [[ "$BUILD_ALL" == "true" || -z "$PACKAGES_TO_BUILD" ]]; then
-            echo "Building all packages"
-            pnpm --filter "./userscripts/*" run build
-            echo "builtAll=true" >> $GITHUB_OUTPUT
-          else
-            echo "Building packages: $PACKAGES_TO_BUILD"
-            for pkg in $PACKAGES_TO_BUILD; do
-              pnpm --filter "./userscripts/$pkg" run build
-            done
-            echo "builtAll=false" >> $GITHUB_OUTPUT
-            echo "builtPackages=$PACKAGES_TO_BUILD" >> $GITHUB_OUTPUT
-          fi
+          echo "=== Building all userscripts ==="
+          pnpm --filter "./userscripts/*" run build
 
       - name: Debug - List Built Files
         run: |
@@ -181,7 +97,7 @@ jobs:
           done
 
       - name: Create Package Tags
-        if: steps.check-changes.outputs.hasChangesets == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         id: create-package-tags
         run: |
           TAGS_CREATED=""
@@ -208,23 +124,20 @@ jobs:
           fi
 
       - name: Commit Changes
-        if: steps.check-changes.outputs.hasChangesets == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         run: |
           git add .
           git commit -m "chore: version packages [skip ci]"
 
       - name: Create latest Tag
         run: |
-          # Delete existing latest tag
           git tag -d latest 2>/dev/null || true
           git push origin :latest 2>/dev/null || true
-          
-          # Create new latest tag
           git tag -a latest -m "Latest Release"
           echo "Created latest tag"
 
       - name: Push Changes and Tags
-        if: steps.check-changes.outputs.hasChangesets == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -232,7 +145,7 @@ jobs:
           tags: true
 
       - name: Push latest Tag Only
-        if: steps.check-changes.outputs.hasChangesets != 'true'
+        if: steps.check-changesets.outputs.hasChangesets != 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -240,14 +153,14 @@ jobs:
           tags: true
 
       - name: Create Releases for Updated Packages
-        if: steps.check-changes.outputs.hasChangesets == 'true'
+        if: steps.check-changesets.outputs.hasChangesets == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
             
-            const tagList = `${{ steps.create-package-tags.outputs.tagList }}`.trim();
+            const tagList = '${{ steps.create-package-tags.outputs.tagList }}'.trim();
             if (!tagList) {
               console.log('No tags created, skipping package releases');
               return;
@@ -297,119 +210,17 @@ jobs:
             }
 
       - name: Create/Update latest Release
-        uses: actions/github-script@v7
+        uses: softprops/action-gh-release@v3
         with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
+          files: userscripts/*/dist/*.user.js
+          tag_name: latest
+          name: Latest Release
+          body: |
+            This release always contains the latest version of all userscripts.
             
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            
-            const builtAll = ${{ steps.build-packages.outputs.builtAll }} === 'true';
-            const builtPackages = '${{ steps.build-packages.outputs.builtPackages }}'.trim();
-            
-            // 查找或创建 latest release
-            let release;
-            const { data: releases } = await github.rest.repos.listReleases({ owner, repo });
-            const existingRelease = releases.find(r => r.tag_name === 'latest');
-            
-            if (existingRelease) {
-              release = existingRelease;
-              console.log('Found existing latest release');
-            } else {
-              const { data: newRelease } = await github.rest.repos.createRelease({
-                owner,
-                repo,
-                tag_name: 'latest',
-                name: 'Latest Release',
-                body: 'This release always contains the latest version of all userscripts.\n\nDownload the .user.js files from Assets below.',
-                make_latest: 'true',
-                generate_release_notes: true,
-              });
-              release = newRelease;
-              console.log('Created new latest release');
-            }
-            
-            // 收集所有需要上传的文件
-            const filesToUpload = [];
-            
-            if (builtAll) {
-              // 如果全量构建，删除所有旧 assets 并上传所有新的
-              console.log('Full build, replacing all assets');
-              
-              for (const asset of release.assets || []) {
-                await github.rest.repos.deleteReleaseAsset({
-                  owner,
-                  repo,
-                  asset_id: asset.id,
-                });
-                console.log(`Deleted asset: ${asset.name}`);
-              }
-              
-              // 上传所有包
-              for (const pkgDir of fs.readdirSync('userscripts')) {
-                const fullPkgDir = path.join('userscripts', pkgDir);
-                if (fs.statSync(fullPkgDir).isDirectory()) {
-                  const distDir = path.join(fullPkgDir, 'dist');
-                  if (fs.existsSync(distDir)) {
-                    for (const file of fs.readdirSync(distDir)) {
-                      if (file.endsWith('.user.js')) {
-                        filesToUpload.push(path.join(distDir, file));
-                      }
-                    }
-                  }
-                }
-              }
-            } else {
-              // 如果只构建了部分包，只更新这些包的 assets
-              console.log(`Partial build, updating packages: ${builtPackages}`);
-              
-              const packagesToUpdate = builtPackages.split(' ').filter(p => p);
-              
-              for (const pkgName of packagesToUpdate) {
-                const pkgDir = path.join('userscripts', pkgName);
-                const distDir = path.join(pkgDir, 'dist');
-                
-                if (fs.existsSync(distDir)) {
-                  // 删除这个包的旧 assets
-                  const pkgPrefix = `${pkgName}.`;
-                  for (const asset of release.assets || []) {
-                    if (asset.name.startsWith(pkgPrefix) || asset.name === `${pkgName}.user.js`) {
-                      await github.rest.repos.deleteReleaseAsset({
-                        owner,
-                        repo,
-                        asset_id: asset.id,
-                      });
-                      console.log(`Deleted old asset: ${asset.name}`);
-                    }
-                  }
-                  
-                  // 上传新文件
-                  for (const file of fs.readdirSync(distDir)) {
-                    if (file.endsWith('.user.js')) {
-                      filesToUpload.push(path.join(distDir, file));
-                    }
-                  }
-                }
-              }
-            }
-            
-            // 上传文件
-            for (const filePath of filesToUpload) {
-              const content = fs.readFileSync(filePath);
-              const fileName = path.basename(filePath);
-              
-              await github.rest.repos.uploadReleaseAsset({
-                owner,
-                repo,
-                release_id: release.id,
-                name: fileName,
-                data: content,
-              });
-              console.log(`Uploaded asset: ${fileName}`);
-            }
-            
-            console.log('Successfully updated latest release');
+            Download the .user.js files from Assets below.
+          fail_on_unmatched_files: false
+          make_latest: true
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
