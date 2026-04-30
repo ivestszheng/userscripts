@@ -5,15 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      build_mode:
-        description: "Build mode"
-        required: true
-        default: "auto"
-        type: choice
-        options:
-          - "auto"
-          - "force"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -43,7 +34,7 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check for Changesets or Force Build
+      - name: Check for Changesets
         id: check-changesets
         run: |
           HAS_CHANGESETS=false
@@ -51,27 +42,8 @@ jobs:
             HAS_CHANGESETS=true
           fi
           
-          FORCE_BUILD=false
-          if [ "${{ github.event.inputs.build_mode }}" = "force" ]; then
-            FORCE_BUILD=true
-          fi
-          
           echo "hasChangesets=${HAS_CHANGESETS}" >> $GITHUB_OUTPUT
-          echo "forceBuild=${FORCE_BUILD}" >> $GITHUB_OUTPUT
-          
-          if [ "$HAS_CHANGESETS" = "true" ] || [ "$FORCE_BUILD" = "true" ]; then
-            echo "shouldBuild=true" >> $GITHUB_OUTPUT
-          else
-            echo "shouldBuild=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Get Affected Packages (before version)
-        id: affected-packages
-        if: steps.check-changesets.outputs.shouldBuild == 'true' && steps.check-changesets.outputs.hasChangesets == 'true'
-        run: |
-          # 在运行 changeset version 之前，先保存受影响的包
-          CHANGED_PACKAGES=$(pnpm changeset status --output-json | jq -r '.releases[].name' || true)
-          echo "changedPackages=${CHANGED_PACKAGES}" >> $GITHUB_OUTPUT
+          echo "shouldBuild=true" >> $GITHUB_OUTPUT
 
       - name: Configure Git Credentials
         if: steps.check-changesets.outputs.shouldBuild == 'true'
@@ -85,25 +57,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm changeset version
 
-      - name: Build Packages
+      - name: Build All Packages
         if: steps.check-changesets.outputs.shouldBuild == 'true'
         run: |
-          if [ "${{ steps.check-changesets.outputs.forceBuild }}" = "true" ]; then
-            echo "=== Force build: building all userscripts ==="
-            pnpm --filter "./userscripts/*" run build
-          else
-            CHANGED_PACKAGES="${{ steps.affected-packages.outputs.changedPackages }}"
-            if [ -z "$CHANGED_PACKAGES" ]; then
-              echo "=== No affected packages found, building all userscripts ==="
-              pnpm --filter "./userscripts/*" run build
-            else
-              echo "=== Incremental build: building affected packages ==="
-              for pkg in $CHANGED_PACKAGES; do
-                echo "Building $pkg..."
-                pnpm --filter "$pkg" run build
-              done
-            fi
-          fi
+          echo "=== Building all userscripts ==="
+          pnpm --filter "./userscripts/*" run build
 
       - name: Debug - List Built Files
         if: steps.check-changesets.outputs.shouldBuild == 'true'
@@ -178,34 +136,13 @@ jobs:
           branch: ${{ github.ref }}
           tags: true
 
-      - name: Push latest Tag Only (Force Build)
-        if: steps.check-changesets.outputs.forceBuild == 'true'
+      - name: Push latest Tag Only
+        if: steps.check-changesets.outputs.shouldBuild == 'true' && steps.check-changesets.outputs.hasChangesets != 'true'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.ref }}
           tags: true
-
-      - name: Generate Release Body
-        id: generate-release-body
-        if: steps.check-changesets.outputs.shouldBuild == 'true'
-        run: |
-          {
-            echo "This release always contains the latest version of all userscripts."
-            echo ""
-            echo "Direct download links:"
-            
-            for pkg_dir in userscripts/*; do
-              if [ -d "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ]; then
-                pkg_name=$(basename "$pkg_dir")
-                echo "- [${pkg_name}.user.js](https://github.com/${{ github.repository }}/releases/latest/download/${pkg_name}.user.js)"
-              fi
-            done
-          } > release-body.md
-          
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat release-body.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create/Update latest Release
         if: steps.check-changesets.outputs.shouldBuild == 'true'
@@ -214,7 +151,10 @@ jobs:
           files: userscripts/*/dist/*.user.js
           tag_name: latest
           name: Latest Release
-          body: ${{ steps.generate-release-body.outputs.body }}
+          body: |
+            This release always contains the latest version of all userscripts.
+            
+            Download the .user.js files from Assets below.
           fail_on_unmatched_files: false
           make_latest: true
           generate_release_notes: true
