@@ -27,18 +27,6 @@ importers:
         specifier: ^7.1.1
         version: 7.1.9(postcss@8.5.12)(vite@7.3.2(lightningcss@1.32.0))
 
-  userscripts/pbilibili:
-    devDependencies:
-      typescript:
-        specifier: ^5.9.2
-        version: 5.9.3
-      vite:
-        specifier: ^7.1.3
-        version: 7.3.2(lightningcss@1.32.0)
-      vite-plugin-monkey:
-        specifier: ^7.1.1
-        version: 7.1.9(postcss@8.5.12)(vite@7.3.2(lightningcss@1.32.0))
-
 packages:
 
   '@babel/runtime@7.29.2':
