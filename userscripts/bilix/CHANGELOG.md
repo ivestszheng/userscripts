@@ -1,5 +1,11 @@
 # bilix
 
+## 0.2.2
+
+### Patch Changes
+
+- [`0a0196a`](https://github.com/ivestszheng/userscripts/commit/0a0196af3e4312f85451d4a1398b3d6be94101b9) Thanks [@ivestszheng](https://github.com/ivestszheng)! - 重构了主题相关的代码结构，拆分出主题获取、保存和初始化逻辑，同时新增 localStorage 存储主题配置，兼容 cookie 旧有配置，完善了系统主题监听和跨标签页主题同步能力。但是仍然无法处理“番剧”等模块，原因在于这些模块的深色模式逻辑与首页不同。
+
 ## 0.2.1
 
 ### Patch Changes
